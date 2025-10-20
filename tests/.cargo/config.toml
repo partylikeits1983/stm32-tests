@@ -1,0 +1,5 @@
+# Override the root config to build for the host system
+[build]
+target-dir = "target"
+
+# Remove the embedded target setting for this workspace member

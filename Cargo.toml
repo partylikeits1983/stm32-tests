@@ -1,0 +1,35 @@
+[workspace]
+members = [".", "tests"]
+default-members = ["."]
+
+[package]
+name = "stm32-tests"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "stm32_tests"
+path = "src/lib.rs"
+
+# Binaries are auto-discovered from src/bin/
+# No need to explicitly define them here
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+panic-halt = "0.2"
+stm32f4xx-hal = { version = "0.23", features = ["stm32f411"] }
+# ECDSA dependencies
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
+ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying"] }
+sha2 = { version = "0.10", default-features = false }
+# RNG for key generation
+rand_core = { version = "0.6", default-features = false }
+# RTT for debug output
+rtt-target = "0.5"
+panic-rtt-target = { version = "0.1", features = ["cortex-m"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
