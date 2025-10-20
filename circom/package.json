@@ -1,0 +1,16 @@
+{
+  "name": "circom",
+  "version": "1.0.0",
+  "description": "This directory contains everything needed to generate Groth16 proofs for IMT (Incremental Merkle Tree) preimage knowledge and verify them on an STM32 microcontroller.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7"
+  }
+}

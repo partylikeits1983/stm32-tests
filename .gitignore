@@ -1,2 +1,17 @@
 /target
 tests/target/
+
+# Circom build artifacts
+circom/*.ptau
+circom/*.zkey
+circom/*.r1cs
+circom/*.sym
+circom/*.wtns
+circom/imt_preimage_js/
+
+# Circom converter build artifacts
+circom/converter/target/
+
+# Node modules
+circom/node_modules/
+circom/package-lock.json
