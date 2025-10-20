@@ -148,3 +148,140 @@ pub fn keccak256(data: &[u8]) -> [u8; 32] {
     result.copy_from_slice(&hash);
     result
 }
+
+/// EIP712 Domain structure
+#[derive(Clone)]
+pub struct Eip712Domain {
+    pub name: &'static str,
+    pub version: &'static str,
+    pub chain_id: u64,
+    pub verifying_contract: [u8; 20],
+}
+
+impl Eip712Domain {
+    /// Create a new EIP712 domain
+    pub fn new(
+        name: &'static str,
+        version: &'static str,
+        chain_id: u64,
+        verifying_contract: [u8; 20],
+    ) -> Self {
+        Self {
+            name,
+            version,
+            chain_id,
+            verifying_contract,
+        }
+    }
+
+    /// Compute the domain separator hash
+    pub fn hash_struct(&self) -> [u8; 32] {
+        // EIP712Domain type hash
+        let type_hash = keccak256(
+            b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
+        );
+
+        let name_hash = keccak256(self.name.as_bytes());
+        let version_hash = keccak256(self.version.as_bytes());
+
+        // Encode: typeHash || nameHash || versionHash || chainId || verifyingContract
+        let mut encoded = [0u8; 160]; // 32 + 32 + 32 + 32 + 32 (padded address)
+        encoded[0..32].copy_from_slice(&type_hash);
+        encoded[32..64].copy_from_slice(&name_hash);
+        encoded[64..96].copy_from_slice(&version_hash);
+
+        // Encode chain_id as uint256 (32 bytes, big-endian)
+        let chain_id_bytes = self.chain_id.to_be_bytes();
+        encoded[120..128].copy_from_slice(&chain_id_bytes);
+
+        // Encode address (20 bytes, left-padded to 32 bytes)
+        encoded[140..160].copy_from_slice(&self.verifying_contract);
+
+        keccak256(&encoded)
+    }
+}
+
+/// EIP712 Multisig Transaction structure
+#[derive(Clone)]
+pub struct MultisigTransaction {
+    pub to: [u8; 20],
+    pub value: u64,
+    pub data: &'static [u8],
+    pub nonce: u64,
+}
+
+impl MultisigTransaction {
+    /// Create a new multisig transaction
+    pub fn new(to: [u8; 20], value: u64, data: &'static [u8], nonce: u64) -> Self {
+        Self {
+            to,
+            value,
+            data,
+            nonce,
+        }
+    }
+
+    /// Compute the struct hash for this transaction
+    pub fn hash_struct(&self) -> [u8; 32] {
+        // MultisigTransaction type hash
+        let type_hash =
+            keccak256(b"MultisigTransaction(address to,uint256 value,bytes data,uint256 nonce)");
+
+        let data_hash = keccak256(self.data);
+
+        // Encode: typeHash || to || value || dataHash || nonce
+        let mut encoded = [0u8; 160]; // 32 + 32 + 32 + 32 + 32
+        encoded[0..32].copy_from_slice(&type_hash);
+
+        // Encode address (20 bytes, left-padded to 32 bytes)
+        encoded[44..64].copy_from_slice(&self.to);
+
+        // Encode value as uint256 (32 bytes, big-endian)
+        let value_bytes = self.value.to_be_bytes();
+        encoded[88..96].copy_from_slice(&value_bytes);
+
+        // Encode data hash
+        encoded[96..128].copy_from_slice(&data_hash);
+
+        // Encode nonce as uint256 (32 bytes, big-endian)
+        let nonce_bytes = self.nonce.to_be_bytes();
+        encoded[152..160].copy_from_slice(&nonce_bytes);
+
+        keccak256(&encoded)
+    }
+}
+
+/// Compute EIP712 typed data hash
+pub fn eip712_hash(domain: &Eip712Domain, struct_hash: &[u8; 32]) -> [u8; 32] {
+    let domain_separator = domain.hash_struct();
+
+    // EIP712 message: "\x19\x01" || domainSeparator || structHash
+    let mut message = [0u8; 66];
+    message[0] = 0x19;
+    message[1] = 0x01;
+    message[2..34].copy_from_slice(&domain_separator);
+    message[34..66].copy_from_slice(struct_hash);
+
+    keccak256(&message)
+}
+
+/// Sign EIP712 typed data
+pub fn sign_eip712(
+    keypair: &EthereumKeyPair,
+    domain: &Eip712Domain,
+    struct_hash: &[u8; 32],
+) -> Signature {
+    let message_hash = eip712_hash(domain, struct_hash);
+    keypair.signing_key.sign(&message_hash)
+}
+
+/// Verify EIP712 typed data signature
+pub fn verify_eip712(
+    keypair: &EthereumKeyPair,
+    domain: &Eip712Domain,
+    struct_hash: &[u8; 32],
+    signature: &Signature,
+) -> Result<(), ecdsa::Error> {
+    let message_hash = eip712_hash(domain, struct_hash);
+    keypair.verifying_key.verify(&message_hash, signature)
+}
