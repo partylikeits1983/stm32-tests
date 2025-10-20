@@ -4,6 +4,7 @@
 //! multiple binaries, including display drivers, crypto implementations,
 //! and other common functionality.
 
+pub mod crypto;
 pub mod oled;
 
 // Re-export commonly used types for convenience
