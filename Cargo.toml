@@ -19,10 +19,13 @@ cortex-m = "0.7"
 cortex-m-rt = "0.7"
 panic-halt = "0.2"
 stm32f4xx-hal = { version = "0.23", features = ["stm32f411"] }
-# ECDSA dependencies
-p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
+# ECDSA dependencies for Ethereum (secp256k1)
+k256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
 ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying"] }
 sha2 = { version = "0.10", default-features = false }
+sha3 = { version = "0.10", default-features = false }
+# Keep p256 for other uses if needed
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
 # RNG for key generation
 rand_core = { version = "0.6", default-features = false }
 # RTT for debug output
