@@ -3,12 +3,15 @@
 use k256::{
     ecdsa::{signature::Signer, signature::Verifier, Signature, SigningKey, VerifyingKey},
     elliptic_curve::{
-        rand_core::{CryptoRng, RngCore},
+        rand_core::{CryptoRng, RngCore as RngCore06},
         sec1::ToEncodedPoint,
     },
     PublicKey,
 };
 use sha3::{Digest, Keccak256};
+
+// Also import rand_core 0.9 for miden-crypto compatibility
+use rand_core::RngCore as RngCore09;
 
 /// Simple RNG implementation using hardware timer as entropy source
 pub struct SimpleRng {
@@ -32,7 +35,8 @@ impl SimpleRng {
     }
 }
 
-impl RngCore for SimpleRng {
+// Implement RngCore 0.6 for k256 compatibility
+impl RngCore06 for SimpleRng {
     fn next_u32(&mut self) -> u32 {
         self.next_u32_internal()
     }
@@ -53,9 +57,35 @@ impl RngCore for SimpleRng {
         }
     }
 
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.fill_bytes(dest);
+    fn try_fill_bytes(
+        &mut self,
+        dest: &mut [u8],
+    ) -> Result<(), k256::elliptic_curve::rand_core::Error> {
+        RngCore06::fill_bytes(self, dest);
         Ok(())
+    }
+}
+
+// Implement RngCore 0.9 for miden-crypto compatibility
+impl RngCore09 for SimpleRng {
+    fn next_u32(&mut self) -> u32 {
+        self.next_u32_internal()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let high = self.next_u32_internal() as u64;
+        let low = self.next_u32_internal() as u64;
+        (high << 32) | low
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        for chunk in dest.chunks_mut(4) {
+            let random = self.next_u32_internal();
+            let bytes = random.to_le_bytes();
+            for (i, byte) in chunk.iter_mut().enumerate() {
+                *byte = bytes[i];
+            }
+        }
     }
 }
 
@@ -84,7 +114,7 @@ pub struct EthereumKeyPair {
 
 impl EthereumKeyPair {
     /// Generate a new Ethereum key pair using the provided RNG
-    pub fn generate<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+    pub fn generate<R: RngCore06 + CryptoRng>(rng: &mut R) -> Self {
         let signing_key = SigningKey::random(rng);
         let verifying_key = VerifyingKey::from(&signing_key);
         let public_key = PublicKey::from(&verifying_key);

@@ -27,7 +27,9 @@ sha3 = { version = "0.10", default-features = false }
 # Keep p256 for other uses if needed
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arithmetic"] }
 # RNG for key generation
-rand_core = { version = "0.6", default-features = false }
+rand_core = { version = "0.9", default-features = false }
+rand = { version = "0.9", default-features = false }
+getrandom = { version = "0.2", default-features = false, features = ["custom"] }
 # RTT for debug output
 rtt-target = "0.5"
 panic-rtt-target = { version = "0.1", features = ["cortex-m"] }
@@ -41,8 +43,12 @@ ark-serialize = { version = "0.3", default-features = false }
 ark-groth16 = { version = "0.3", default-features = false }
 # Heap allocator for arkworks
 alloc-cortex-m = "0.4"
+# Miden crypto for Falcon512 post-quantum signatures
+miden-crypto = { version = "0.14.1", default-features = false }
 
 [profile.release]
-opt-level = "z"
-lto = true
-codegen-units = 1
+opt-level = "z"      # Optimize for size
+lto = "fat"          # Full link-time optimization
+codegen-units = 1    # Better optimization
+strip = true         # Strip symbols
+panic = "abort"      # Smaller panic handler

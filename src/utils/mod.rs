@@ -5,6 +5,7 @@
 //! and other common functionality.
 
 pub mod crypto;
+pub mod falcon;
 pub mod groth16;
 pub mod oled;
 
