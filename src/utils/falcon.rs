@@ -1,10 +1,14 @@
 //! Falcon512 post-quantum signature utilities for STM32
+//! Using pqcrypto-falcon crate (no-std compatible)
 
 extern crate alloc;
 use alloc::vec::Vec;
 
-use miden_crypto::dsa::rpo_falcon512::{PublicKey, SecretKey, Signature};
-use miden_crypto::{Felt, Word};
+use pqcrypto_falcon::falcon512::{
+    detached_sign, keypair, open, sign, verify_detached_signature, DetachedSignature, PublicKey,
+    SecretKey, SignedMessage,
+};
+use pqcrypto_traits::sign::{PublicKey as PublicKeyTrait, SecretKey as SecretKeyTrait};
 
 /// Falcon512 key pair structure
 pub struct Falcon512KeyPair {
@@ -13,53 +17,124 @@ pub struct Falcon512KeyPair {
 }
 
 impl Falcon512KeyPair {
-    /// Generate a new Falcon512 key pair using the provided RNG
-    pub fn generate<R: rand::Rng>(rng: &mut R) -> Self {
-        let secret_key = SecretKey::with_rng(rng);
-        let public_key = secret_key.public_key();
+    /// Generate a new Falcon512 key pair
+    /// Note: This uses the internal RNG from pqcrypto-falcon
+    pub fn generate() -> Self {
+        let (pk, sk) = keypair();
 
         Falcon512KeyPair {
+            secret_key: sk,
+            public_key: pk,
+        }
+    }
+
+    /// Sign a message using Falcon512 (returns signed message)
+    /// The signed message includes both the signature and the original message
+    pub fn sign(&self, message: &[u8]) -> SignedMessage {
+        sign(message, &self.secret_key)
+    }
+
+    /// Sign a message using Falcon512 (returns detached signature)
+    /// The detached signature is separate from the message
+    pub fn sign_detached(&self, message: &[u8]) -> DetachedSignature {
+        detached_sign(message, &self.secret_key)
+    }
+
+    /// Verify a signed message and return the original message if valid
+    pub fn verify(&self, signed_message: &SignedMessage) -> Result<Vec<u8>, &'static str> {
+        open(signed_message, &self.public_key).map_err(|_| "Signature verification failed")
+    }
+
+    /// Verify a detached signature
+    pub fn verify_detached(&self, signature: &DetachedSignature, message: &[u8]) -> bool {
+        verify_detached_signature(signature, message, &self.public_key).is_ok()
+    }
+
+    /// Get the public key as bytes
+    pub fn public_key_bytes(&self) -> &[u8] {
+        self.public_key.as_bytes()
+    }
+
+    /// Get the secret key as bytes
+    pub fn secret_key_bytes(&self) -> &[u8] {
+        self.secret_key.as_bytes()
+    }
+
+    /// Create a keypair from existing key bytes
+    pub fn from_bytes(pk_bytes: &[u8], sk_bytes: &[u8]) -> Result<Self, &'static str> {
+        let public_key = PublicKey::from_bytes(pk_bytes).map_err(|_| "Invalid public key bytes")?;
+        let secret_key = SecretKey::from_bytes(sk_bytes).map_err(|_| "Invalid secret key bytes")?;
+
+        Ok(Falcon512KeyPair {
             secret_key,
             public_key,
-        }
+        })
+    }
+}
+
+/// Get the size of a Falcon512 public key in bytes
+pub const fn public_key_bytes_len() -> usize {
+    pqcrypto_falcon::falcon512::public_key_bytes()
+}
+
+/// Get the size of a Falcon512 secret key in bytes
+pub const fn secret_key_bytes_len() -> usize {
+    pqcrypto_falcon::falcon512::secret_key_bytes()
+}
+
+/// Get the maximum size of a Falcon512 signature in bytes
+pub const fn signature_bytes_len() -> usize {
+    pqcrypto_falcon::falcon512::signature_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_keypair_generation() {
+        let keypair = Falcon512KeyPair::generate();
+        assert_eq!(keypair.public_key_bytes().len(), public_key_bytes_len());
+        assert_eq!(keypair.secret_key_bytes().len(), secret_key_bytes_len());
     }
 
-    /// Sign a message using Falcon512
-    /// Message is hashed to a Word before signing
-    pub fn sign<R: rand::Rng>(&self, message: &[u8], rng: &mut R) -> Signature {
-        // Hash message to Word
-        let message_word = Self::hash_message_to_word(message);
-        self.secret_key.sign_with_rng(message_word, rng)
+    #[test]
+    fn test_sign_and_verify() {
+        let keypair = Falcon512KeyPair::generate();
+        let message = b"Hello, Falcon512!";
+
+        let signed_message = keypair.sign(message);
+        let verified_message = keypair.verify(&signed_message).unwrap();
+
+        assert_eq!(verified_message, message);
     }
 
-    /// Verify a signature
-    pub fn verify(&self, message: &[u8], signature: &Signature) -> bool {
-        let message_word = Self::hash_message_to_word(message);
-        self.public_key.verify(message_word, signature)
+    #[test]
+    fn test_detached_sign_and_verify() {
+        let keypair = Falcon512KeyPair::generate();
+        let message = b"Hello, Falcon512 detached!";
+
+        let signature = keypair.sign_detached(message);
+        assert!(keypair.verify_detached(&signature, message));
+
+        // Verify with wrong message should fail
+        let wrong_message = b"Wrong message";
+        assert!(!keypair.verify_detached(&signature, wrong_message));
     }
 
-    /// Get the public key as a Word (4 field elements)
-    pub fn public_key_word(&self) -> Word {
-        self.public_key.into()
-    }
+    #[test]
+    fn test_from_bytes() {
+        let keypair1 = Falcon512KeyPair::generate();
+        let pk_bytes = keypair1.public_key_bytes();
+        let sk_bytes = keypair1.secret_key_bytes();
 
-    /// Simple hash function to convert message bytes to Word
-    /// This is a basic implementation - in production you'd use a proper hash
-    fn hash_message_to_word(message: &[u8]) -> Word {
-        use miden_crypto::hash::rpo::Rpo256;
+        let keypair2 = Falcon512KeyPair::from_bytes(pk_bytes, sk_bytes).unwrap();
 
-        // Convert message bytes to field elements
-        let mut elements = Vec::new();
-        for chunk in message.chunks(8) {
-            let mut val: u64 = 0;
-            for (j, &byte) in chunk.iter().enumerate() {
-                val |= (byte as u64) << (j * 8);
-            }
-            elements.push(Felt::new(val));
-        }
+        // Sign with first keypair, verify with second
+        let message = b"Test message";
+        let signed_message = keypair1.sign(message);
+        let verified_message = keypair2.verify(&signed_message).unwrap();
 
-        // Hash the elements and convert to Word
-        let digest = Rpo256::hash_elements(&elements);
-        digest.into()
+        assert_eq!(verified_message, message);
     }
 }

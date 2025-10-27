@@ -8,6 +8,7 @@ pub mod crypto;
 pub mod falcon;
 pub mod groth16;
 pub mod oled;
+pub mod random;
 
 // Re-export commonly used types for convenience
 pub use oled::{DcPin, OledDisplay, RstPin};

@@ -29,7 +29,7 @@ p256 = { version = "0.13", default-features = false, features = ["ecdsa", "arith
 # RNG for key generation
 rand_core = { version = "0.9", default-features = false }
 rand = { version = "0.9", default-features = false }
-getrandom = { version = "0.2", default-features = false, features = ["custom"] }
+getrandom = { version = "0.3", default-features = false }
 # RTT for debug output
 rtt-target = "0.5"
 panic-rtt-target = { version = "0.1", features = ["cortex-m"] }
@@ -43,8 +43,9 @@ ark-serialize = { version = "0.3", default-features = false }
 ark-groth16 = { version = "0.3", default-features = false }
 # Heap allocator for arkworks
 alloc-cortex-m = "0.4"
-# Miden crypto for Falcon512 post-quantum signatures
-miden-crypto = { version = "0.14.1", default-features = false }
+# PQCrypto Falcon512 post-quantum signatures (no-std compatible)
+pqcrypto-falcon = { git = "https://github.com/partylikeits1983/pqcrypto.git", default-features = false }
+pqcrypto-traits = { git = "https://github.com/partylikeits1983/pqcrypto.git", default-features = false }
 
 [profile.release]
 opt-level = "z"      # Optimize for size
